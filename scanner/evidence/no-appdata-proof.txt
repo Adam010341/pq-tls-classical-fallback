@@ -1,0 +1,61 @@
+kit-c zero-application-data proof. 2026-11-15T17:57:46Z. OpenSSL 3.5.6 7 Apr 2026 (Library: OpenSSL 3.5.6 7 Apr 2026). Inside unshare -Urnm (loopback only).
+Server: openssl s_server -tls1_3 -www -naccept 1 -trace on 127.0.0.1/::1. Lines: direction as seen by the SERVER, decrypted inner content type.
+
+== A. OLD pipeline (campaign 2): echo | s_client ... -groups '*X25519MLKEM768:*X25519'
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Received: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Received: Inner Content Type = ApplicationData (23)
+  Received: Inner Content Type = Alert (21)
+  Received:     Level=warning(1), description=close notify(0)
+  Sent: Inner Content Type = Alert (21)
+  Sent:     Level=warning(1), description=close notify(0)
+
+== B. NEW kit-c probe_one.sh, probe p1 (*X25519MLKEM768:*X25519) to 127.0.0.1, server groups X25519MLKEM768:X25519
+  probe token: ok|ch=1|hrr=0|sh=1|grp=X25519MLKEM768
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Received: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Received: Inner Content Type = Alert (21)
+  Received:     Level=warning(1), description=close notify(0)
+  Sent: Inner Content Type = Alert (21)
+  Sent:     Level=warning(1), description=close notify(0)
+  client ApplicationData records received by server: 0
+
+== C. NEW kit-c probe_one.sh, probe p2 (X25519MLKEM768:*X25519) to ::1, server groups DEFAULT
+  probe token: ok|ch=2|hrr=1|sh=2|grp=X25519MLKEM768
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Received: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Received: Inner Content Type = Alert (21)
+  Received:     Level=warning(1), description=close notify(0)
+  Sent: Inner Content Type = Alert (21)
+  Sent:     Level=warning(1), description=close notify(0)
+  client ApplicationData records received by server: 0
+
+== D. NEW kit-c probe_one.sh, probe pa (*X25519:*X25519MLKEM768) to 127.0.0.1, server groups DEFAULT
+  probe token: ok|ch=1|hrr=0|sh=1|grp=X25519MLKEM768
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Received: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Sent: Inner Content Type = Handshake (22)
+  Received: Inner Content Type = Alert (21)
+  Received:     Level=warning(1), description=close notify(0)
+  Sent: Inner Content Type = Alert (21)
+  Sent:     Level=warning(1), description=close notify(0)
+  client ApplicationData records received by server: 0

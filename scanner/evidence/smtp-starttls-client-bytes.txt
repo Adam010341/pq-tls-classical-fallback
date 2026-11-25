@@ -1,0 +1,123 @@
+What `openssl s_client -starttls smtp` sends: kit-c probe_smtp.sh against a fake SMTP server (2026-11-18)
+
+Recorded on the laptop inside `unshare -Urn` (network namespace with loopback only; nothing left the machine).
+Client: kit-c/probe_smtp.sh mx.example.test 127.0.0.1 2525 <label> <groups> <trace> probe.example.test 12, i.e.
+  timeout 12 openssl s_client -connect 127.0.0.1:2525 -starttls smtp -name probe.example.test
+          -servername mx.example.test -tls1_3 -groups <groups> -trace < /dev/null
+  (OpenSSL 3.5.6 7 Apr 2026).
+Server: kit-c/tests/fake_smtp.py on 127.0.0.1:2525 speaks the plaintext SMTP part itself and logs every byte the client
+sends; after "220 Ready to start TLS" it relays the raw bytes to `openssl s_server -tls1_3 -www -naccept 1 -trace`
+(s_server has no STARTTLS mode), whose trace shows what the client sent inside TLS after decryption.
+The same facts are asserted by tests s01 and s02 of tests/test_kit.py at every run.
+
+Summary
+- Nothing is sent before the server's greeting (case tarpit: connection accepted, no byte from the client until the
+  12 s timeout ended the probe).
+- After the greeting the client sends exactly "EHLO <-name>\r\n", then exactly "STARTTLS\r\n", then the TLS handshake.
+- Inside TLS the client sends only handshake messages and, because stdin is /dev/null, a close_notify alert; then it
+  closes the TCP connection. No application data, no MAIL, RCPT, DATA, RSET or QUIT, before or after TLS.
+- s_client does not look at SMTP reply codes: it sends EHLO after a 554 greeting, STARTTLS when the EHLO reply does not
+  offer it (and prints "Didn't find STARTTLS in server response, trying anyway..."), and after a refused STARTTLS
+  (454) it still sends its ClientHello (a binary TLS record, 243 bytes for P2) in plaintext; the server reads it as
+  garbage command lines (here two "502" replies), s_client reports "wrong version number" and closes. That probe fails.
+- s_client writes the last line of the server's EHLO reply into its output after a completed handshake ("250
+  8BITMIME" below). It is server-controlled text inside the trace file (see README, SMTP section).
+- HRR detection works on the STARTTLS trace: probe P2 against a default s_server gives hrr=1 grp=X25519MLKEM768.
+
+### case ok: probe p1, front-end options: none, server groups: X25519MLKEM768:X25519
+token: ok|ch=1|hrr=0|sh=1|grp=X25519MLKEM768
+front-end log (s2c = server to client, c2s = client to server, exact bytes; tls-* = relayed TLS bytes):
+  accept
+  s2c 220-fake.test ESMTP test front end\r\n220 fake.test ready\r\n
+  c2s EHLO probe.example.test\r\n
+  s2c 250-fake.test\r\n250-PIPELINING\r\n250-STARTTLS\r\n250 8BITMIME\r\n
+  c2s STARTTLS\r\n
+  s2c 220 2.0.0 Ready to start TLS\r\n
+  tls-c2s 1567 bytes, first byte 22
+  tls-s2c 2101 bytes, first byte 22
+server s_server -trace, records received from the client (inner content types after decryption):
+    Inner Content Type = Handshake (22)
+    Inner Content Type = Alert (21)
+      Level=warning(1), description=close notify(0)
+client trace lines printed from the server's SMTP text (s_client echoes the last EHLO reply line):
+  line 241:250 8BITMIME
+
+### case hrr: probe p2, front-end options: none, server groups: -
+token: ok|ch=2|hrr=1|sh=2|grp=X25519MLKEM768
+front-end log (s2c = server to client, c2s = client to server, exact bytes; tls-* = relayed TLS bytes):
+  accept
+  s2c 220-fake.test ESMTP test front end\r\n220 fake.test ready\r\n
+  c2s EHLO probe.example.test\r\n
+  s2c 250-fake.test\r\n250-PIPELINING\r\n250-STARTTLS\r\n250 8BITMIME\r\n
+  c2s STARTTLS\r\n
+  s2c 220 2.0.0 Ready to start TLS\r\n
+  tls-c2s 1774 bytes, first byte 22
+  tls-s2c 2192 bytes, first byte 22
+server s_server -trace, records received from the client (inner content types after decryption):
+    Inner Content Type = Handshake (22)
+    Inner Content Type = Alert (21)
+      Level=warning(1), description=close notify(0)
+client trace lines printed from the server's SMTP text (s_client echoes the last EHLO reply line):
+  line 318:250 8BITMIME
+
+### case nostarttls: probe p1, front-end options: no-starttls, server groups: X25519MLKEM768:X25519
+token: ok|ch=1|hrr=0|sh=1|grp=X25519MLKEM768
+front-end log (s2c = server to client, c2s = client to server, exact bytes; tls-* = relayed TLS bytes):
+  accept
+  s2c 220-fake.test ESMTP test front end\r\n220 fake.test ready\r\n
+  c2s EHLO probe.example.test\r\n
+  s2c 250-fake.test\r\n250-PIPELINING\r\n250 8BITMIME\r\n
+  c2s STARTTLS\r\n
+  s2c 220 2.0.0 Ready to start TLS\r\n
+  tls-c2s 1567 bytes, first byte 22
+  tls-s2c 1846 bytes, first byte 22
+server s_server -trace, records received from the client (inner content types after decryption):
+    Inner Content Type = Handshake (22)
+    Inner Content Type = Alert (21)
+      Level=warning(1), description=close notify(0)
+client trace lines printed from the server's SMTP text (s_client echoes the last EHLO reply line):
+  line 2:Didn't find STARTTLS in server response, trying anyway...
+  line 242:250 8BITMIME
+
+### case refused: probe p2, front-end options: starttls-reply=454 4.7.0 TLS not available, server groups: -
+token: fail|ch=1|hrr=0|sh=0|grp=-
+front-end log (s2c = server to client, c2s = client to server, exact bytes; tls-* = relayed TLS bytes):
+  accept
+  s2c 220-fake.test ESMTP test front end\r\n220 fake.test ready\r\n
+  c2s EHLO probe.example.test\r\n
+  s2c 250-fake.test\r\n250-PIPELINING\r\n250-STARTTLS\r\n250 8BITMIME\r\n
+  c2s STARTTLS\r\n
+  s2c 454 4.7.0 TLS not available\r\n
+  c2s <binary from here: 243 bytes, first bytes 16030100ee (a TLS handshake record = the ClientHello)>
+  s2c 502 5.5.2 command not recognized\r\n
+  s2c 502 5.5.2 command not recognized\r\n
+  close by client
+server s_server -trace, records received from the client (inner content types after decryption):
+client trace lines printed from the server's SMTP text (s_client echoes the last EHLO reply line):
+  line 2:40679A2C38700000:error:0A00010B:SSL routines:tls_validate_record_header:wrong version number:ssl/record/methods/tlsany_meth.c:77:
+
+### case greeting554: probe p1, front-end options: reject, server groups: X25519MLKEM768:X25519
+token: ok|ch=1|hrr=0|sh=1|grp=X25519MLKEM768
+front-end log (s2c = server to client, c2s = client to server, exact bytes; tls-* = relayed TLS bytes):
+  accept
+  s2c 554 5.7.1 no service here\r\n
+  c2s EHLO probe.example.test\r\n
+  s2c 250-fake.test\r\n250-PIPELINING\r\n250-STARTTLS\r\n250 8BITMIME\r\n
+  c2s STARTTLS\r\n
+  s2c 220 2.0.0 Ready to start TLS\r\n
+  tls-c2s 1567 bytes, first byte 22
+  tls-s2c 1845 bytes, first byte 22
+server s_server -trace, records received from the client (inner content types after decryption):
+    Inner Content Type = Handshake (22)
+    Inner Content Type = Alert (21)
+      Level=warning(1), description=close notify(0)
+client trace lines printed from the server's SMTP text (s_client echoes the last EHLO reply line):
+  line 241:250 8BITMIME
+
+### case tarpit: probe p1, front-end options: no-banner, server groups: -
+token: fail|ch=0|hrr=0|sh=0|grp=-
+front-end log (s2c = server to client, c2s = client to server, exact bytes; tls-* = relayed TLS bytes):
+  accept
+server s_server -trace, records received from the client (inner content types after decryption):
+client trace lines printed from the server's SMTP text (s_client echoes the last EHLO reply line):
+

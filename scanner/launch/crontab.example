@@ -1,0 +1,12 @@
+# kit-c launcher crontab for ONE scan date (example: 2026-12-01 = day 1, month 12). NOT installed anywhere.
+# Install with `crontab -e` only after the SETTINGS block of launch-cron.sh is filled in, the date
+# is announced to the network operator and the operator has approved that night (GO phrase added to GO_PHRASES).
+# Times are in the machine's time zone, which must equal SCAN_TZ of launch-cron.sh (`timedatectl show -p Timezone
+# --value`; Asia/Taipei for the campus vantage); the launcher itself checks the date and time in SCAN_TZ and exits outside
+# [window start, window end - 1 h) (02:00-07:00 for the 02:00-08:00 window) or on any other date. For another window,
+# move both lines so that they cover that interval.
+# Line 1: 02:05. Line 2: every 10 minutes, 02:15 ... 06:55 (minutes 15,25,35,45,55 of hours 2-6).
+# For another date, change the day-of-month (3rd field), the month (4th field) and the argument on both lines.
+# These lines fire on that day every year: remove them after the campaign.
+5        2    1  12  *  /path/to/kit-c/launch/launch-cron.sh 2026-12-01 >/dev/null 2>&1
+15-55/10 2-6  1  12  *  /path/to/kit-c/launch/launch-cron.sh 2026-12-01 >/dev/null 2>&1

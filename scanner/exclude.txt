@@ -1,0 +1,8 @@
+# kit-c exclusion list. One entry per line; '#' starts a comment.
+#   example.org          exactly this name (and the www. variant derived from it)
+#   *.example.org        example.org itself and every name below it
+#   192.0.2.0/24         an IPv4 address or CIDR block (a bare address means /32)
+#   2001:db8::/32        an IPv6 address or CIDR block (a bare address means /128)
+# Checked before resolution (names) and again before every probe (names and addresses); re-read during a run when
+# the file changes. An invalid line stops the run (or refuses to start it). Not covered by SHA256SUMS on purpose:
+# opt-out requests are added here.
