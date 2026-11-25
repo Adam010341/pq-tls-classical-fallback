@@ -1,7 +1,8 @@
 # Scanner
 
-A rate-limited, resumable TLS 1.3 key-share scanner. Python 3 standard library only; the TLS client
-is the OpenSSL 3.5 command-line tool (`s_client`).
+This is a rate-limited TLS 1.3 scanner that records which key-exchange group a server selects. It is
+written in Python 3 with only the standard library, and it uses the OpenSSL 3.5 command-line tool
+(`s_client`) as its TLS client. A scan that is interrupted can be resumed later.
 
 ## Files
 
@@ -23,12 +24,13 @@ is the OpenSSL 3.5 command-line tool (`s_client`).
 OPENSSL=/path/to/openssl-3.5/bin/openssl bash run_tests.sh
 ```
 
-The tests run inside `unshare -Urnm`, so nothing leaves the machine. They need Linux, Python 3.9+,
-OpenSSL 3.5 or newer, and `gcc` for the QUIC test server.
+The tests run inside `unshare -Urnm`, so nothing leaves the machine. They need Linux, Python 3.9 or
+newer, OpenSSL 3.5 or newer, and `gcc` to build the QUIC test server.
 
 ## Running a scan
 
-Run on its own, `run.py` only connects to loopback addresses. A real scan goes through the guard:
+When you run `run.py` on its own, it only connects to loopback addresses. A real scan has to go
+through the guard, which first checks that it is safe to start:
 
 ```bash
 python3 -I guard.py check --date YYYY-MM-DD --allowed-dates YYYY-MM-DD \
@@ -37,8 +39,8 @@ python3 -I guard.py check --date YYYY-MM-DD --allowed-dates YYYY-MM-DD \
     --vantage-label "University campus, AS64500, City" --max-minutes 360 --www add
 ```
 
-`check` only reports. `run` takes the same arguments plus an approval phrase for that date, and
-refuses to start if any check fails:
+The `check` command only reports what it finds. The `run` command takes the same arguments plus an
+approval phrase for that date, and it refuses to start unless all of the following hold:
 
 - the local time is inside the scan window (default 02:00 to 08:00) on an announced date;
 - the source address is the one announced to the network operator;
