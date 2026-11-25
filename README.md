@@ -88,7 +88,4 @@ were told before anything was made public.
 
 ## About
 
-This started as a team project for Purdue ECE 50877 (Applied Cryptography). The measurement design,
-the scanner and the vulnerability report are my part of it.
-
 Chi-Yen (Adam) Fan, National Cheng Kung University
