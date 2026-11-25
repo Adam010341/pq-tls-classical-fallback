@@ -1,6 +1,7 @@
 # When post-quantum TLS quietly falls back to classical
 
-Browsers and TLS libraries now enable hybrid post-quantum key exchange (X25519MLKEM768) by default.
+Browsers and TLS libraries now enable hybrid post-quantum key exchange by default: a classical key
+exchange and a post-quantum one, combined.
 My question was simple: if both the client and the server support it, can a connection still end up
 with classical key exchange only?
 
@@ -9,22 +10,23 @@ It can. This repository holds what I found and the scanner I wrote to measure ho
 ## Background in three sentences
 
 In TLS 1.3 a client lists the key-exchange groups it supports and, separately, sends key shares for
-some of them. If the client lists the hybrid group but only sends an X25519 share, the server can
-either ask for the hybrid share (a HelloRetryRequest, one extra round trip) or simply accept X25519.
+some of them. If the client lists the hybrid group but only sends a classical share, the server can
+either ask for the hybrid share (a HelloRetryRequest, one extra round trip) or simply accept the
+classical one.
 The standard allows both, so the outcome depends on the library and how it is configured.
 
 ```mermaid
 sequenceDiagram
     participant C as Client
     participant S as Server
-    C->>S: ClientHello (groups = hybrid, X25519 / key share = X25519 only)
+    C->>S: ClientHello (groups = hybrid, classical / key share = classical only)
     alt Server asks for the hybrid share
         S-->>C: HelloRetryRequest (please send a hybrid share)
         C->>S: ClientHello (key share = hybrid)
         S-->>C: ServerHello (hybrid)
         Note over C,S: Post-quantum protected, one extra round trip
     else Server accepts the classical share
-        S-->>C: ServerHello (X25519)
+        S-->>C: ServerHello (classical)
         Note over C,S: Classical only, although both sides support hybrid
     end
 ```
@@ -34,9 +36,9 @@ sequenceDiagram
 **1. A downgrade bug in rustls.**
 One forged ServerHello, processed before the server's certificate was checked, made the client send
 only a classical key share on later connections to the same server name. I reported it privately and
-the maintainers fixed it in rustls 0.23.46
-([GHSA-w44r-93j7-qv28](https://github.com/rustls/rustls/security/advisories/GHSA-w44r-93j7-qv28),
-CVE-2026-123611, severity low).
+the maintainers fixed it in rustls 0.23.46. It was published as a
+[security advisory](https://github.com/rustls/rustls/security/advisories/GHSA-w44r-93j7-qv28)
+with low severity, and later received a CVE number.
 
 ```mermaid
 sequenceDiagram
@@ -44,18 +46,18 @@ sequenceDiagram
     participant A as Attacker on the path
     participant S as Real server
     C->>A: ClientHello (key share = hybrid)
-    A-->>C: Forged ServerHello that selects X25519
-    Note over C: Remembers "this server wants X25519"<br/>before any certificate is checked
+    A-->>C: Forged ServerHello that selects the classical group
+    Note over C: Remembers "this server wants classical"<br/>before any certificate is checked
     Note over C: The handshake then fails, as it should
-    C->>S: Next connection, ClientHello (key share = X25519 only)
-    S-->>C: ServerHello (X25519)
+    C->>S: Next connection, ClientHello (key share = classical only)
+    S-->>C: ServerHello (classical)
     Note over C,S: Classical only, if the server accepts the classical share
 ```
 
 **2. Many servers accept the classical share.**
 In a scan of the Tranco top 10,000 domains, 4,461 selected the hybrid group when offered both shares.
-When offered only the classical share, 16.2% of them completed the handshake on X25519 without asking
-for the hybrid one. Four scans over several weeks gave 15.1% to 16.5%.
+When offered only the classical share, 16.2% of them completed the handshake with classical key
+exchange, without asking for the hybrid one. Four scans over several weeks gave 15.1% to 16.5%.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/four-scans-dark.svg">
@@ -81,7 +83,7 @@ library so that the server asks for the hybrid share. They stay unnamed here unt
 In a local testbed, a server accepts the classical share when it runs:
 
 - OpenSSL with a colon-separated group list, which ranks both groups equally;
-- an OpenSSL release affected by CVE-2026-2673, where a list containing `DEFAULT` loses its order;
+- an older OpenSSL release with a known bug, where a group list containing `DEFAULT` loses its order;
 - wolfSSL with default settings.
 
 **4. It already happens for mail.**
@@ -105,6 +107,8 @@ only go to servers that selected the hybrid group.
 
 Results are read from the recorded handshake messages, not from the client's summary line, because
 the summary does not show a HelloRetryRequest. Every connection closes right after the handshake.
+
+In protocol terms, the hybrid group is X25519MLKEM768 and the classical one is X25519.
 
 ## The scanner
 
