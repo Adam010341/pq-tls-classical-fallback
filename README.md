@@ -123,14 +123,14 @@ drives the OpenSSL 3.5 command-line client.
 
 ```mermaid
 flowchart LR
-    T[Target list] --> G{guard.py<br/>pre-flight checks}
-    G -- a check fails --> X[Refuse to start]
-    G -- all pass --> R[run.py<br/>at most 18 handshakes/s]
-    R --> P1[Probe 1<br/>every hostname]
-    P1 -- selected hybrid --> P2[Probes 2 to 4]
-    P1 -- anything else --> D[Done with this host]
-    P2 --> O[(results.tsv<br/>traces.jsonl.xz)]
-    W[Watchdog<br/>window end, STOP file, clock] -.-> R
+    T["Target list"] --> G{"guard.py<br/>pre-flight checks"}
+    G -- "a check fails" --> X["Refuse to start"]
+    G -- "all pass" --> R["run.py<br/>at most 18 handshakes per second"]
+    R --> P1["Probe 1<br/>every hostname"]
+    P1 -- "selected hybrid" --> P2["Probes 2 to 4"]
+    P1 -- "anything else" --> D["Done with this host"]
+    P2 --> O[("results.tsv<br/>traces.jsonl.xz")]
+    W["Watchdog<br/>window end, STOP file, clock"] -.-> R
 ```
 
 A typical night: about 230,000 handshakes to 100,000 hostnames in roughly four hours, never above
